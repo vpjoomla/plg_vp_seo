@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<form>
+    <fields name="metadata">
+        <fieldset name="jmetadata">
+            <field name="vpseo_preview"
+                   type="Vpseopreview"
+                   addfieldprefix="VPJoomla\Plugin\System\Vpseo\Field"
+                   label="PLG_SYSTEM_VPSEO_PREVIEW_LABEL" />
+
+            <field name="seo_title"
+                   type="text"
+                   label="PLG_SYSTEM_VPSEO_SEOTITLE_LABEL"
+                   description="PLG_SYSTEM_VPSEO_SEOTITLE_DESC"
+                   maxlength="255"
+                   size="60" />
+
+            <field name="seo_append_sitename"
+                   type="list"
+                   label="PLG_SYSTEM_VPSEO_APPEND_LABEL"
+                   description="PLG_SYSTEM_VPSEO_APPEND_DESC"
+                   default=""
+                   showon="seo_title!:">
+                <option value="">JGLOBAL_USE_GLOBAL</option>
+                <option value="yes">JYES</option>
+                <option value="no">JNO</option>
+            </field>
+
+            <field name="og_description"
+                   type="textarea"
+                   label="PLG_SYSTEM_VPSEO_OGDESC_LABEL"
+                   description="PLG_SYSTEM_VPSEO_OGDESC_DESC"
+                   rows="3"
+                   maxlength="300"
+                   charcounter="true" />
+
+            <field name="og_image"
+                   type="media"
+                   label="PLG_SYSTEM_VPSEO_OGIMG_LABEL"
+                   description="PLG_SYSTEM_VPSEO_OGIMG_DESC" />
+
+            <field name="canonical"
+                   type="url"
+                   label="PLG_SYSTEM_VPSEO_CANONICAL_LABEL"
+                   description="PLG_SYSTEM_VPSEO_CANONICAL_DESC"
+                   filter="url" />
+        </fieldset>
+    </fields>
+</form>

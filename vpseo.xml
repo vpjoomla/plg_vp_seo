@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="plugin" group="system" method="upgrade">
+    <name>PLG_SYSTEM_VPSEO</name>
+    <author>Volodymyr Pershyn</author>
+    <authorEmail>support@vpjoomla.com</authorEmail>
+    <authorUrl>https://vpjoomla.com</authorUrl>
+    <creationDate>2026-06</creationDate>
+    <copyright>Copyright (C) 2024 - 2026 VPJoomla. All rights reserved.</copyright>
+    <license>GNU GPL v2 or later; see LICENSE.txt</license>
+    <version>1.0.0</version>
+    <description>PLG_SYSTEM_VPSEO_XML_DESC</description>
+
+    <namespace path="src">VPJoomla\Plugin\System\Vpseo</namespace>
+
+    <files>
+        <folder plugin="vpseo">services</folder>
+        <folder>src</folder>
+        <folder>forms</folder>
+        <folder>language</folder>
+    </files>
+
+    <languages>
+        <language tag="en-GB">language/en-GB/en-GB.plg_system_vpseo.ini</language>
+        <language tag="en-GB">language/en-GB/en-GB.plg_system_vpseo.sys.ini</language>
+    </languages>
+
+    <config>
+        <fields name="params">
+            <fieldset name="basic" label="PLG_SYSTEM_VPSEO_FIELDSET_BASIC">
+                <field name="title_pattern"
+                       type="text"
+                       label="PLG_SYSTEM_VPSEO_TITLEPAT_LABEL"
+                       description="PLG_SYSTEM_VPSEO_TITLEPAT_DESC"
+                       default="{title} {sep} {sitename}"
+                       size="50" />
+                <field name="title_separator"
+                       type="text"
+                       label="PLG_SYSTEM_VPSEO_TITLESEP_LABEL"
+                       description="PLG_SYSTEM_VPSEO_TITLESEP_DESC"
+                       default="|"
+                       size="6"
+                       showon="title_pattern!:" />
+                <field name="default_description"
+                       type="textarea"
+                       rows="3"
+                       label="PLG_SYSTEM_VPSEO_DEF_DESC_LABEL"
+                       description="PLG_SYSTEM_VPSEO_DEF_DESC_DESC" />
+                <field name="default_image"
+                       type="media"
+                       label="PLG_SYSTEM_VPSEO_DEF_IMG_LABEL"
+                       description="PLG_SYSTEM_VPSEO_DEF_IMG_DESC" />
+                <field name="auto_description"
+                       type="radio"
+                       layout="joomla.form.field.radio.switcher"
+                       label="PLG_SYSTEM_VPSEO_AUTODESC_LABEL"
+                       description="PLG_SYSTEM_VPSEO_AUTODESC_DESC"
+                       default="1">
+                    <option value="0">JNO</option>
+                    <option value="1">JYES</option>
+                </field>
+                <field name="twitter_site"
+                       type="text"
+                       label="PLG_SYSTEM_VPSEO_TWITTER_SITE_LABEL"
+                       description="PLG_SYSTEM_VPSEO_TWITTER_SITE_DESC"
+                       hint="@yoursite" />
+                <field name="auto_canonical"
+                       type="radio"
+                       layout="joomla.form.field.radio.switcher"
+                       label="PLG_SYSTEM_VPSEO_AUTOCANON_LABEL"
+                       description="PLG_SYSTEM_VPSEO_AUTOCANON_DESC"
+                       default="0">
+                    <option value="0">JNO</option>
+                    <option value="1">JYES</option>
+                </field>
+                <field name="article_meta"
+                       type="radio"
+                       layout="joomla.form.field.radio.switcher"
+                       label="PLG_SYSTEM_VPSEO_ARTMETA_LABEL"
+                       description="PLG_SYSTEM_VPSEO_ARTMETA_DESC"
+                       default="1">
+                    <option value="0">JNO</option>
+                    <option value="1">JYES</option>
+                </field>
+            </fieldset>
+        </fields>
+    </config>
+
+    <updateservers>
+        <server type="extension" priority="1" name="VP SEO Pro">https://vpjoomla.com/updates/vp-seo-pro/vp-seo-pro.xml</server>
+    </updateservers>
+</extension>
