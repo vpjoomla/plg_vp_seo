@@ -16,9 +16,7 @@ use Joomla\CMS\Event\Model;
 use Joomla\CMS\Form\Form;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Plugin\CMSPlugin;
-use Joomla\CMS\Router\Route;
 use Joomla\CMS\Uri\Uri;
-use Joomla\Component\Content\Site\Helper\RouteHelper;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Database\ParameterType;
 use Joomla\Event\SubscriberInterface;
@@ -147,23 +145,6 @@ final class Vpseo extends CMSPlugin implements SubscriberInterface
             $doc->setTitle($this->buildPageTitle($seoTitle, (string) ($data['seo_append_sitename'] ?? '')));
         }
 
-        // Title template overrides the simple title when configured.
-        $pattern = trim((string) $this->params->get('title_pattern', ''));
-
-        if ($isArticle && $pattern !== '' && $baseTitle !== '') {
-            $appendMode = (string) ($data['seo_append_sitename'] ?? '');
-            $doc->setTitle(
-                $this->renderTitlePattern(
-                    $pattern,
-                    (string) $this->params->get('title_separator', '|'),
-                    [
-                        '{title}'    => $baseTitle,
-                        '{category}' => (string) ($data['section'] ?? ''),
-                        '{sitename}' => $appendMode === 'no' ? '' : (string) $app->get('sitename'),
-                    ]
-                )
-            );
-        }
 
         // 2) Description.
         //    Raw base description: native meta description -> global default -> auto from intro text.
@@ -174,14 +155,18 @@ final class Vpseo extends CMSPlugin implements SubscriberInterface
             $rawBase = $this->stripShortcodes((string) ($data['introtext'] ?? ''));
         }
 
-        // Standard <meta name="description">: ~160 chars (search-snippet best practice).
-        if ($nativeDesc === '' && ($metaDesc = $this->truncate($rawBase, 160)) !== '') {
-            $doc->setDescription($metaDesc);
+        // One description for both search and social: keep an existing meta description as-is,
+        // otherwise build one at ~160 chars (search-snippet best practice). Social previews
+        // truncate around the same length, so a single base avoids over-long og:description.
+        $baseDesc = $nativeDesc !== '' ? $nativeDesc : $this->truncate($rawBase, 160);
+
+        if ($nativeDesc === '' && $baseDesc !== '') {
+            $doc->setDescription($baseDesc);
         }
 
-        // Social description: per-article override -> base; up to ~200 chars.
-        $description = $this->truncate((string) ($data['og_description'] ?? ''), 200)
-            ?: $this->truncate($rawBase, 200);
+        // Social description: per-article override (Pro) wins, otherwise the same base description.
+        $ogOverride  = $this->truncate((string) ($data['og_description'] ?? ''), 200);
+        $description = $ogOverride !== '' ? $ogOverride : $baseDesc;
 
         // 3) Image: per-article override -> article intro image -> global fallback.
         //    SVG candidates are skipped — social platforms can't render them as previews.
@@ -193,7 +178,6 @@ final class Vpseo extends CMSPlugin implements SubscriberInterface
         $image = $this->makeAbsolute($imageRaw);
 
         // 4) Canonical (Pro).
-        $this->applyCanonical($doc, $data, $isArticle);
 
         // og:title uses the clean title (no site-name / category decoration).
         $ogTitle = $seoTitle !== '' ? $seoTitle : ($articleTitle ?: $doc->getTitle());
@@ -209,18 +193,6 @@ final class Vpseo extends CMSPlugin implements SubscriberInterface
         if ($image !== '') {
             $this->setProperty($doc, 'og:image', $image);
 
-            $this->setProperty($doc, 'og:image:alt', $this->truncate($ogTitle, 120));
-
-            [$imgW, $imgH, $imgMime] = $this->imageInfo($imageRaw);
-
-            if ($imgW > 0 && $imgH > 0) {
-                $this->setProperty($doc, 'og:image:width', (string) $imgW);
-                $this->setProperty($doc, 'og:image:height', (string) $imgH);
-            }
-
-            if ($imgMime !== '') {
-                $this->setProperty($doc, 'og:image:type', $imgMime);
-            }
         }
 
         // Article-specific OpenGraph timestamps.
@@ -233,22 +205,6 @@ final class Vpseo extends CMSPlugin implements SubscriberInterface
                 $this->setProperty($doc, 'article:modified_time', $modified);
             }
 
-            // Author / section / tags (toggleable).
-            if ((int) $this->params->get('article_meta', 1) === 1) {
-                if ($author = (string) ($data['author'] ?? '')) {
-                    $this->setProperty($doc, 'article:author', $author);
-                }
-
-                if ($section = (string) ($data['section'] ?? '')) {
-                    $this->setProperty($doc, 'article:section', $section);
-                }
-
-                foreach ($this->getArticleTags((int) ($data['id'] ?? 0)) as $tag) {
-                    if ($tag !== '') {
-                        $doc->addCustomTag('<meta property="article:tag" content="' . htmlspecialchars((string) $tag, ENT_QUOTES, 'UTF-8') . '">');
-                    }
-                }
-            }
         }
 
         // --- Twitter Card (uses name= attribute, not property=) ---
@@ -258,7 +214,6 @@ final class Vpseo extends CMSPlugin implements SubscriberInterface
 
         if ($image !== '') {
             $this->setName($doc, 'twitter:image', $image);
-            $this->setName($doc, 'twitter:image:alt', $this->truncate($ogTitle, 120));
         }
 
         if ($twitterSite = trim((string) $this->params->get('twitter_site', ''))) {
@@ -293,28 +248,6 @@ final class Vpseo extends CMSPlugin implements SubscriberInterface
         )();
     }
 
-    /**
-     * Add a canonical link: per-article override wins, otherwise auto-canonical (if enabled).
-     *
-     * @param   HtmlDocument  $doc        The document.
-     * @param   array         $data       The per-article data.
-     * @param   bool          $isArticle  Whether the current view is a single article.
-     *
-     * @return  void
-     */
-    private function applyCanonical(HtmlDocument $doc, array $data, bool $isArticle): void
-    {
-        $canonical = $this->makeAbsolute((string) ($data['canonical'] ?? ''));
-
-        if ($canonical === '' && $isArticle && (int) $this->params->get('auto_canonical', 0) === 1 && !empty($data['id'])) {
-            $route     = RouteHelper::getArticleRoute((int) $data['id'], (int) ($data['catid'] ?? 0), (string) ($data['language'] ?? '*'));
-            $canonical = rtrim(Uri::root(), '/') . Route::_($route, false);
-        }
-
-        if ($canonical !== '') {
-            $doc->addHeadLink($canonical, 'canonical', 'rel');
-        }
-    }
 
     /**
      * Fetch all per-article SEO data needed for the head.
@@ -381,30 +314,6 @@ final class Vpseo extends CMSPlugin implements SubscriberInterface
         ];
     }
 
-    /**
-     * Fetch the tag titles assigned to an article.
-     *
-     * @param   int  $id  The article id.
-     *
-     * @return  string[]
-     */
-    private function getArticleTags(int $id): array
-    {
-        if ($id <= 0) {
-            return [];
-        }
-
-        $db    = $this->getDatabase();
-        $query = $db->getQuery(true)
-            ->select($db->quoteName('t.title'))
-            ->from($db->quoteName('#__contentitem_tag_map', 'm'))
-            ->join('INNER', $db->quoteName('#__tags', 't') . ' ON ' . $db->quoteName('t.id') . ' = ' . $db->quoteName('m.tag_id'))
-            ->where($db->quoteName('m.type_alias') . ' = ' . $db->quote('com_content.article'))
-            ->where($db->quoteName('m.content_item_id') . ' = :id')
-            ->bind(':id', $id, ParameterType::INTEGER);
-
-        return $db->setQuery($query)->loadColumn() ?: [];
-    }
 
     /**
      * Convert a Joomla UTC datetime string to an ISO-8601 timestamp, or '' if empty/invalid.
@@ -424,34 +333,6 @@ final class Vpseo extends CMSPlugin implements SubscriberInterface
         return $ts ? gmdate('c', $ts) : '';
     }
 
-    /**
-     * Render a token-based title template.
-     * Segments are separated by the {sep} token; empty segments are dropped so there are
-     * no dangling separators, and remaining segments are joined with the configured separator.
-     *
-     * @param   string                 $pattern    The template, e.g. "{title} {sep} {sitename}".
-     * @param   string                 $separator  The visual separator (e.g. "|").
-     * @param   array<string,string>   $tokens     Token => value map.
-     *
-     * @return  string
-     */
-    private function renderTitlePattern(string $pattern, string $separator, array $tokens): string
-    {
-        $separator = trim($separator);
-        $segments  = [];
-
-        foreach (explode('{sep}', $pattern) as $segment) {
-            $segment = trim(strtr($segment, $tokens));
-
-            if ($segment !== '') {
-                $segments[] = $segment;
-            }
-        }
-
-        $glue = $separator === '' ? ' ' : ' ' . $separator . ' ';
-
-        return implode($glue, $segments);
-    }
 
     /**
      * Apply Joomla's "Include Site Name in Page Titles" rule to a raw title,
@@ -567,36 +448,6 @@ final class Vpseo extends CMSPlugin implements SubscriberInterface
         return $path;
     }
 
-    /**
-     * Read width, height and MIME type for a local image. Returns [0, 0, ''] for
-     * external URLs or unreadable files.
-     *
-     * @param   string  $raw  The raw image path.
-     *
-     * @return  array{0:int,1:int,2:string}
-     */
-    private function imageInfo(string $raw): array
-    {
-        $path = $this->cleanImagePath($raw);
-
-        if ($path === '' || preg_match('#^https?://#i', $path)) {
-            return [0, 0, ''];
-        }
-
-        $file = JPATH_ROOT . '/' . ltrim($path, '/');
-
-        if (!is_file($file)) {
-            return [0, 0, ''];
-        }
-
-        $info = @getimagesize($file);
-
-        if (!$info) {
-            return [0, 0, ''];
-        }
-
-        return [(int) $info[0], (int) $info[1], (string) ($info['mime'] ?? '')];
-    }
 
     /**
      * Whether a URL points to an SVG file (ignoring any query string).
